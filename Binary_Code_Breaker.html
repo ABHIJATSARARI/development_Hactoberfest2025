@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binary Code Breaker</title>
+    <!-- Load Tailwind CSS CDN for utility classes -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Tone.js for sound effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <!-- Load Orbitron font for arcade look -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+    </style>
+    <!-- Tailwind Configuration -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Orbitron', 'sans-serif'],
+                    },
+                    colors: {
+                        'space-dark': '#0f172a', /* slate-900 */
+                        'digital-green': '#34d399', /* emerald-400 */
+                        'input-off': '#1e293b', /* slate-800 */
+                        'input-on': '#10b981', /* emerald-500 */
+                        'error-red': '#f87171', /* red-400 */
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Custom Game CSS -->
+    <style>
+        /* Base styles for the "Binary Code Breaker" theme */
+        body {
+            background-color: #0f172a; 
+            color: #34d399; /* Digital Green text */
+            font-family: 'Orbitron', sans-serif;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        /* Main Game Container */
+        #game-area {
+            width: 95%;
+            max-width: 500px;
+            margin: 1rem auto;
+            border: 3px solid #34d399;
+            box-shadow: 0 0 30px rgba(52, 211, 153, 0.5); /* Glowing border */
+            background-color: #1e293b; 
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        /* Target Code Display */
+        #target-code {
+            font-size: 4rem;
+            letter-spacing: 0.5rem;
+            color: #34d399;
+            text-shadow: 0 0 10px #34d399;
+            min-height: 80px; /* Prevent layout shift */
+        }
+
+        /* Input Bit Buttons */
+        .bit-input-button {
+            height: 80px;
+            width: 80px;
+            border-radius: 50%;
+            border: 3px solid #34d399;
+            transition: all 0.1s ease-in-out;
+            font-size: 2.5rem;
+            line-height: 1;
+            box-shadow: 0 0 5px rgba(52, 211, 153, 0.3);
+        }
+
+        /* State for Input Bit Buttons */
+        .bit-off {
+            background-color: #1e293b;
+            color: #34d399;
+        }
+
+        .bit-on {
+            background-color: #10b981;
+            color: #0f172a;
+            box-shadow: 0 0 20px #10b981;
+        }
+
+        /* Transmit Button */
+        #transmit-button {
+            background: #10b981;
+            color: #0f172a;
+            font-size: 1.5rem;
+            padding: 1rem 2rem;
+            border: 3px solid #10b981;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.6);
+            transition: all 0.15s ease-in-out;
+        }
+        
+        #transmit-button:hover:not(:disabled) {
+            background: #0f172a;
+            color: #10b981;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 1);
+        }
+
+        /* General Game Button styling */
+        .game-button {
+            font-size: 1.25rem;
+            padding: 0.75rem 2rem;
+            cursor: pointer;
+            border: 2px solid #34d399;
+            background: #1f2937;
+            color: #34d399;
+            box-shadow: 0 4px 15px rgba(52, 211, 153, 0.4);
+            transition: all 0.15s ease-in-out;
+        }
+
+        .game-button:hover:not(:disabled) {
+            background: #34d399;
+            color: #0f172a;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(52, 211, 153, 0.6);
+        }
+
+        .game-button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .game-button:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body class="p-4 flex flex-col items-center justify-center min-h-screen">
+
+    <div class="w-full max-w-4xl flex flex-col items-center">
+        <h1 class="text-4xl sm:text-5xl font-bold mb-4 text-digital-green tracking-wider text-shadow-xl text-center">
+            🔒 BINARY CODE BREAKER 💻
+        </h1>
+
+        <!-- Score/Level Display -->
+        <div class="w-full max-w-[500px] flex justify-between text-xl sm:text-2xl font-mono p-4 rounded-lg bg-gray-800 border-2 border-gray-700 shadow-lg mb-4">
+            <span>LEVEL: <span id="level-display" class="text-digital-green">0</span></span>
+            <span>SCORE: <span id="score-display" class="text-digital-green">0</span></span>
+        </div>
+
+        <!-- Game Area -->
+        <div id="game-area" class="flex flex-col items-center space-y-6">
+            
+            <div class="w-full text-center">
+                <p class="text-lg text-gray-400 mb-2">TARGET SEQUENCE:</p>
+                <div id="target-code" class="font-bold font-mono text-center">----</div>
+            </div>
+
+            <div class="w-full flex justify-center items-center space-x-4">
+                <div class="w-1/4 text-center">
+                    <div class="text-xs text-gray-500 mb-1">TIME LEFT</div>
+                    <div id="timer-display" class="text-3xl font-bold text-error-red">--</div>
+                </div>
+            </div>
+
+            <!-- Player Input Controls -->
+            <div id="input-controls" class="flex justify-around w-full p-4 bg-gray-900 rounded-lg border border-gray-700">
+                <button data-bit-index="0" class="bit-input-button bit-off">0</button>
+                <button data-bit-index="1" class="bit-input-button bit-off">0</button>
+                <button data-bit-index="2" class="bit-input-button bit-off">0</button>
+                <button data-bit-index="3" class="bit-input-button bit-off">0</button>
+            </div>
+
+            <!-- Transmit Button -->
+            <button id="transmit-button" class="game-button rounded-full w-full max-w-xs" disabled>
+                TRANSMIT
+            </button>
+        </div>
+        
+        <!-- Controls (Start/Stop) -->
+        <div class="flex space-x-4 mt-6">
+            <button id="start-button" class="game-button rounded-full">
+                Start Breaching
+            </button>
+            <button id="stop-button" class="game-button rounded-full hidden bg-red-800 border-red-500 text-red-300 hover:bg-red-500 hover:text-white" disabled>
+                Stop Game
+            </button>
+        </div>
+
+        <!-- Game Over / Start Message Modal -->
+        <div id="message-modal" class="hidden fixed inset-0 bg-space-dark bg-opacity-90 z-20 items-center justify-center" onclick="hideMessage()">
+            <div class="bg-gray-800 p-8 rounded-xl shadow-2xl border-4 border-digital-green max-w-md w-full mx-4" onclick="event.stopPropagation()">
+                <h2 id="modal-title" class="text-3xl font-bold mb-4 text-digital-green">System Ready</h2>
+                <p id="modal-message" class="text-gray-300 mb-6 text-lg">Match the **TARGET SEQUENCE** using the four binary buttons below, then hit **TRANSMIT** before the timer expires!</p>
+                
+                <button class="game-button rounded-lg w-full" onclick="hideMessage()">Execute</button>
+            </div>
+        </div>
+
+        <!-- Signature/Credit -->
+        <p class="text-xs text-gray-500 mt-6 tracking-widest uppercase">
+            Code Signature: abhijat sarari
+        </p>
+    </div>
+
+    <!-- JavaScript Game Logic -->
+    <script>
+        // Global Game Variables
+        let level = 0;
+        let score = 0;
+        let isGameRunning = false;
+        let intervalId;
+        let timer = 0;
+        
+        // Game Constants
+        const INITIAL_CODE_LENGTH = 4;
+        const INITIAL_TIME_PER_LEVEL = 4.0; // Seconds
+        const TIME_DECREMENT_PER_LEVEL = 0.1;
+
+        let targetCode = []; // e.g., [1, 0, 1, 1]
+        let playerInput = [0, 0, 0, 0];
+        let codeLength = INITIAL_CODE_LENGTH;
+
+        // DOM Elements
+        const targetDisplay = document.getElementById('target-code');
+        const timerDisplay = document.getElementById('timer-display');
+        const inputButtons = document.querySelectorAll('.bit-input-button');
+        const transmitButton = document.getElementById('transmit-button');
+        
+        // --- Tone.js Setup for sounds ---
+        let flipSynth, successSynth, failureSynth;
+        
+        function initAudio() {
+            try {
+                if (!flipSynth) {
+                    Tone.start();
+                    // Synth for bit flip
+                    flipSynth = new Tone.MembraneSynth().toDestination();
+                    
+                    // Synth for success
+                    successSynth = new Tone.PolySynth(Tone.Synth).toDestination();
+                    successSynth.set({
+                        oscillator: { type: "sine" },
+                        envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 }
+                    });
+                    
+                    // Synth for failure/game over
+                    failureSynth = new Tone.NoiseSynth({
+                        noise: { type: 'brown' },
+                        envelope: { attack: 0.01, decay: 0.4, sustain: 0, release: 0.2 }
+                    }).toDestination();
+                }
+            } catch (e) {
+                console.error("Tone.js failed to initialize:", e);
+            }
+        }
+
+        // Sound functions
+        function playFlipSound(value) {
+            if (flipSynth) {
+                flipSynth.triggerAttackRelease(value === 1 ? "C3" : "C2", "16n");
+            }
+        }
+
+        function playSuccessSound() {
+            if (successSynth) {
+                successSynth.triggerAttackRelease(["C5", "G5"], "8n");
+            }
+        }
+
+        function playFailureSound() {
+            if (failureSynth) {
+                failureSynth.triggerAttackRelease("4n");
+            }
+        }
+
+        // --- Game Logic ---
+
+        function generateTargetCode() {
+            // Generates a new random binary code based on current codeLength
+            targetCode = Array.from({ length: codeLength }, () => Math.floor(Math.random() * 2));
+        }
+
+        function updateInputDisplay() {
+            // Update the visual state of the player input buttons
+            inputButtons.forEach((button, index) => {
+                const value = playerInput[index];
+                button.textContent = value;
+                if (value === 1) {
+                    button.classList.remove('bit-off');
+                    button.classList.add('bit-on');
+                } else {
+                    button.classList.remove('bit-on');
+                    button.classList.add('bit-off');
+                }
+            });
+        }
+
+        function handleInputClick(event) {
+            if (!isGameRunning || !transmitButton.disabled) return; // Only allow input when game running and before transmit
+
+            const index = parseInt(event.currentTarget.dataset.bitIndex);
+            
+            // Toggle the bit value (0 to 1, or 1 to 0)
+            playerInput[index] = 1 - playerInput[index];
+            
+            playFlipSound(playerInput[index]);
+            updateInputDisplay();
+        }
+
+        function checkCode() {
+            if (!isGameRunning || transmitButton.disabled) return;
+
+            // Stop the timer immediately
+            clearInterval(intervalId);
+            transmitButton.disabled = true;
+
+            // Convert arrays to strings for easy comparison
+            const targetStr = targetCode.join('');
+            const playerStr = playerInput.slice(0, codeLength).join(''); // Only check up to current code length
+
+            if (targetStr === playerStr) {
+                // Success!
+                playSuccessSound();
+                score += 100 * level; // Score based on level
+                
+                showMessage("ACCESS GRANTED!", `Target Code Matched! Level ${level} cleared.`);
+                
+                // Prepare for next level after a short delay
+                setTimeout(startLevel, 1500);
+
+            } else {
+                // Failure!
+                playFailureSound();
+                
+                // Visually indicate failure
+                targetDisplay.classList.add('text-error-red');
+                targetDisplay.classList.remove('text-digital-green');
+
+                endGame("ACCESS DENIED!", `Incorrect Sequence: ${playerStr}. Target was: ${targetStr}. You reached Level ${level}.`);
+            }
+        }
+
+        // --- Game Flow and Loop ---
+
+        function gameTick() {
+            if (!isGameRunning) return;
+
+            timer -= 0.1;
+            timerDisplay.textContent = timer.toFixed(1);
+
+            if (timer <= 0) {
+                // Time's up!
+                clearInterval(intervalId);
+                playFailureSound();
+                
+                endGame("TIMEOUT!", `You ran out of time! Target was: ${targetCode.join('')}. You reached Level ${level}.`);
+            }
+        }
+
+        function startLevel() {
+            if (!isGameRunning) return;
+
+            level++;
+
+            // Gradually increase difficulty (code length and speed)
+            if (level > 1 && level % 5 === 0) {
+                codeLength = Math.min(8, INITIAL_CODE_LENGTH + Math.floor(level / 5));
+            }
+            const timeLimit = Math.max(1.5, INITIAL_TIME_PER_LEVEL - (level - 1) * TIME_DECREMENT_PER_LEVEL);
+            
+            // Reset for the new level
+            generateTargetCode();
+            timer = timeLimit;
+            
+            // Update UI
+            document.getElementById('level-display').textContent = level;
+            document.getElementById('score-display').textContent = score;
+            targetDisplay.textContent = targetCode.join('');
+            timerDisplay.textContent = timer.toFixed(1);
+
+            // Re-enable controls and timer
+            transmitButton.disabled = false;
+            targetDisplay.classList.remove('text-error-red');
+            targetDisplay.classList.add('text-digital-green');
+            
+            // Set initial player input to all zeros for new level
+            playerInput = Array(codeLength).fill(0); 
+            updateInputDisplay(); 
+            
+            // Restart timer
+            clearInterval(intervalId);
+            intervalId = setInterval(gameTick, 100);
+        }
+
+        // --- UI and Modal ---
+
+        function updateButtonStates(isDisabled) {
+            document.getElementById('start-button').disabled = isDisabled;
+            document.getElementById('stop-button').disabled = !isDisabled;
+            
+            if (isDisabled) {
+                 document.getElementById('start-button').textContent = "BREACHING...";
+                 document.getElementById('stop-button').classList.remove('hidden');
+            } else {
+                 document.getElementById('start-button').textContent = "Restart Breaching";
+                 document.getElementById('stop-button').classList.add('hidden');
+            }
+
+            // Disable player input buttons until the first level starts
+            inputButtons.forEach(button => button.disabled = !isDisabled);
+            transmitButton.disabled = !isDisabled;
+        }
+
+        function showMessage(title, message) {
+            const modal = document.getElementById('message-modal');
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-message').textContent = message;
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function hideMessage() {
+            const modal = document.getElementById('message-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+        
+        function endGame(title, message) {
+            if (!isGameRunning) return;
+
+            isGameRunning = false;
+            clearInterval(intervalId);
+            
+            showMessage(title, message);
+
+            updateButtonStates(false);
+        }
+
+        function startGame() {
+            // Initialize audio on first click interaction
+            initAudio();
+
+            // Reset state
+            level = 0;
+            score = 0;
+            codeLength = INITIAL_CODE_LENGTH;
+            isGameRunning = true;
+            
+            updateButtonStates(true);
+            hideMessage();
+            
+            // Start the first level
+            setTimeout(startLevel, 500);
+        }
+
+        // --- Event Listeners and Initial Setup ---
+
+        window.onload = function() {
+            // Event listeners
+            document.getElementById('start-button').addEventListener('click', startGame);
+            document.getElementById('stop-button').addEventListener('click', () => endGame("MISSION ABORTED", `Manual abort initiated. Final Score: ${score}, Level: ${level}`));
+            transmitButton.addEventListener('click', checkCode);
+            
+            // Attach click listeners to the four input buttons
+            inputButtons.forEach(button => {
+                button.addEventListener('click', handleInputClick);
+                button.addEventListener('touchstart', (e) => { e.preventDefault(); handleInputClick(e); });
+            });
+            
+            // Initial UI setup
+            updateInputDisplay();
+            updateButtonStates(false);
+            showMessage("System Ready", "Match the **TARGET SEQUENCE** using the four binary buttons below, then hit **TRANSMIT** before the timer expires!");
+        };
+    </script>
+</body>
+</html>
